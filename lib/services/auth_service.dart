@@ -1,9 +1,10 @@
-// lib/services/auth_service.dart
 import 'dart:convert';
 import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 import '../models/user.dart';
 import 'email_service.dart';
 
@@ -11,11 +12,11 @@ class AuthService extends ChangeNotifier {
   static const _keySession = 'auth_session_v1';
   static const _keyUsers = 'auth_users_v1';
 
-  // temp storage keys for OTP flows (secure)
-  static const _otpKeyPrefix = 'otp_'; // + identifier
-  static const _otpTimePrefix = 'otp_time_'; // + identifier
-  static const _otpPassPrefix = 'otp_pass_'; // + identifier
-  static const _otpEmailPrefix = 'otp_email_'; // + identifier
+
+  static const _otpKeyPrefix = 'otp_';
+  static const _otpTimePrefix = 'otp_time_';
+  static const _otpPassPrefix = 'otp_pass_';
+  static const _otpEmailPrefix = 'otp_email_';
 
   final FlutterSecureStorage _secure = const FlutterSecureStorage();
 
@@ -32,12 +33,9 @@ class AuthService extends ChangeNotifier {
   bool get isLoggedIn => _currentUser != null;
   bool get isAdmin => _currentUser?.isAdmin == true;
 
-  // -------------------------
-  // Persistence: users + session (SharedPreferences)
-  // -------------------------
+
   Future<void> _loadFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-
     final s = prefs.getString(_keySession);
     if (s != null && s.isNotEmpty) {
       try {
@@ -51,8 +49,8 @@ class AuthService extends ChangeNotifier {
     final usersRaw = prefs.getString(_keyUsers);
     if (usersRaw == null || usersRaw.isEmpty) {
       final defaultUsers = [
-        {'username': 'admin', 'password': 'admin', 'isAdmin': true},
-        {'username': 'user', 'password': 'user', 'isAdmin': false},
+        {'username': 'admin', 'password': 'admin', 'isAdmin': true, 'email': ''},
+        {'username': 'user', 'password': 'user', 'isAdmin': false, 'email': ''},
       ];
       await prefs.setString(_keyUsers, json.encode(defaultUsers));
     }
@@ -83,6 +81,9 @@ class AuthService extends ChangeNotifier {
     await prefs.setString(_keySession, json.encode(user.toJson()));
   }
 
+  String _normalizeId(String s) => s.trim().toLowerCase();
+
+
   Future<bool> login(String username, String password) async {
     username = username.trim();
     final users = await _loadUsersRaw();
@@ -90,10 +91,17 @@ class AuthService extends ChangeNotifier {
           (u) =>
       (u['username'] as String).toLowerCase() == username.toLowerCase() &&
           (u['password'] as String) == password,
-      orElse: () => {},
+      orElse: () => <String, dynamic>{},
     );
+
     if (found.isEmpty) return false;
-    final user = User(username: found['username'] as String, isAdmin: found['isAdmin'] == true);
+
+    final user = User(
+      username: found['username'] as String,
+      isAdmin: found['isAdmin'] == true,
+      email: (found['email'] as String?) ?? '',
+    );
+
     _currentUser = user;
     await _saveSession(user);
     notifyListeners();
@@ -107,20 +115,44 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> register(String username, String password, {bool makeAdmin = false}) async {
+  Future<bool> register(String username, String password, {required String email, bool makeAdmin = false}) async {
     username = username.trim();
-    if (username.isEmpty || password.isEmpty) return false;
+    final normUsername = _normalizeId(username);
+    final normEmail = email.trim().toLowerCase();
+
+    if (normUsername.isEmpty || password.isEmpty || normEmail.isEmpty) return false;
+
     final users = await _loadUsersRaw();
-    final exists = users.any((u) => (u['username'] as String).toLowerCase() == username.toLowerCase());
-    if (exists) return false;
-    users.add({'username': username, 'password': password, 'isAdmin': makeAdmin});
+
+    final existsUsername = users.any((u) => (u['username'] as String).toLowerCase() == normUsername);
+    if (existsUsername) return false;
+
+    final existsEmail = users.any((u) {
+      final e = (u['email'] as String?) ?? '';
+      return e.isNotEmpty && e.toLowerCase() == normEmail;
+    });
+    if (existsEmail) return false;
+
+    users.add({
+      'username': username,
+      'password': password,
+      'isAdmin': makeAdmin,
+      'email': normEmail,
+    });
+
     await _saveUsersRaw(users);
     return true;
   }
 
   Future<List<User>> listUsers() async {
     final users = await _loadUsersRaw();
-    return users.map((u) => User(username: u['username'] as String, isAdmin: u['isAdmin'] == true)).toList();
+    return users
+        .map((u) => User(
+      username: u['username'] as String,
+      isAdmin: u['isAdmin'] == true,
+      email: (u['email'] as String?) ?? '',
+    ))
+        .toList();
   }
 
   Future<bool> removeUser(String username) async {
@@ -140,6 +172,7 @@ class AuthService extends ChangeNotifier {
     if (_currentUser != null && _currentUser!.username.toLowerCase() == username.toLowerCase()) {
       await logout();
     }
+
     notifyListeners();
     return true;
   }
@@ -161,7 +194,7 @@ class AuthService extends ChangeNotifier {
     await _saveUsersRaw(users);
 
     if (_currentUser != null && _currentUser!.username.toLowerCase() == username.toLowerCase()) {
-      _currentUser = User(username: _currentUser!.username, isAdmin: newIsAdmin);
+      _currentUser = User(username: _currentUser!.username, isAdmin: newIsAdmin, email: _currentUser!.email);
       await _saveSession(_currentUser!);
     }
 
@@ -175,12 +208,17 @@ class AuthService extends ChangeNotifier {
     if (idx < 0) return false;
     users[idx]['password'] = newPassword;
     await _saveUsersRaw(users);
+
+    if (_currentUser != null && _currentUser!.username.toLowerCase() == username.toLowerCase()) {
+      _currentUser = User(username: _currentUser!.username, isAdmin: _currentUser!.isAdmin, email: _currentUser!.email);
+      await _saveSession(_currentUser!);
+      notifyListeners();
+    }
+
     return true;
   }
 
-  // -------------------------
-  // OTP flows using secure storage
-  // -------------------------
+
   String _generateOtp() {
     final rnd = Random.secure();
     final code = rnd.nextInt(900000) + 100000;
@@ -189,21 +227,25 @@ class AuthService extends ChangeNotifier {
 
   Future<void> _storeOtp(String id, String otp, {String? password, String? email}) async {
     final now = DateTime.now().toIso8601String();
-    await _secure.write(key: '$_otpKeyPrefix$id', value: otp);
-    await _secure.write(key: '$_otpTimePrefix$id', value: now);
-    if (password != null) await _secure.write(key: '$_otpPassPrefix$id', value: password);
-    if (email != null) await _secure.write(key: '$_otpEmailPrefix$id', value: email);
+    final norm = _normalizeId(id);
+    await _secure.write(key: '$_otpKeyPrefix$norm', value: otp);
+    await _secure.write(key: '$_otpTimePrefix$norm', value: now);
+    if (password != null) await _secure.write(key: '$_otpPassPrefix$norm', value: password);
+    if (email != null) await _secure.write(key: '$_otpEmailPrefix$norm', value: email);
+    if (kDebugMode) debugPrint('AuthService: stored OTP for $norm otp=$otp');
   }
 
   Future<void> _clearOtp(String id) async {
-    await _secure.delete(key: '$_otpKeyPrefix$id');
-    await _secure.delete(key: '$_otpTimePrefix$id');
-    await _secure.delete(key: '$_otpPassPrefix$id');
-    await _secure.delete(key: '$_otpEmailPrefix$id');
+    final norm = _normalizeId(id);
+    await _secure.delete(key: '$_otpKeyPrefix$norm');
+    await _secure.delete(key: '$_otpTimePrefix$norm');
+    await _secure.delete(key: '$_otpPassPrefix$norm');
+    await _secure.delete(key: '$_otpEmailPrefix$norm');
+    if (kDebugMode) debugPrint('AuthService: cleared OTP for $norm');
   }
 
   Future<Map<String, String>?> getStoredRegisterTemp(String username) async {
-    final id = username.trim().toLowerCase();
+    final id = _normalizeId(username);
     final otp = await _secure.read(key: '$_otpKeyPrefix$id');
     final time = await _secure.read(key: '$_otpTimePrefix$id');
     final pass = await _secure.read(key: '$_otpPassPrefix$id');
@@ -217,7 +259,6 @@ class AuthService extends ChangeNotifier {
     };
   }
 
-  // Request OTP for registration: sends email via EmailService and stores otp + metadata in secure storage
   Future<bool> requestRegisterOtp({
     required String username,
     required String password,
@@ -225,55 +266,81 @@ class AuthService extends ChangeNotifier {
     required EmailService emailService,
     int otpTtlMinutes = 5,
   }) async {
-    final id = username.trim().toLowerCase();
-    if (id.isEmpty || password.isEmpty || email.isEmpty) return false;
+    final id = _normalizeId(username);
+    final normEmail = email.trim().toLowerCase();
+    if (id.isEmpty || password.isEmpty || normEmail.isEmpty) return false;
 
     final users = await _loadUsersRaw();
-    final exists = users.any((u) => (u['username'] as String).toLowerCase() == id);
-    if (exists) return false;
+    final existsUsername = users.any((u) => (u['username'] as String).toLowerCase() == id);
+    if (existsUsername) return false;
+
+    final existsEmail = users.any((u) {
+      final e = (u['email'] as String?) ?? '';
+      return e.isNotEmpty && e.toLowerCase() == normEmail;
+    });
+    if (existsEmail) return false;
 
     final otp = _generateOtp();
     final subject = 'OTP xác nhận đăng ký';
     final body = 'Xin chào $username,\nMã OTP đăng ký của bạn: $otp\nMã có hiệu lực $otpTtlMinutes phút.';
 
-    final sent = await emailService.sendEmail(toEmail: email, subject: subject, body: body);
+    final sent = await emailService.sendEmail(toEmail: normEmail, subject: subject, body: body);
     if (!sent) return false;
 
-    await _storeOtp(id, otp, password: password, email: email);
+    await _storeOtp(id, otp, password: password, email: normEmail);
     return true;
   }
 
-  // Confirm OTP and create account
   Future<bool> confirmRegisterOtp({
     required String username,
     required String otp,
     bool makeAdmin = false,
     int otpTtlMinutes = 5,
   }) async {
-    final id = username.trim().toLowerCase();
+    final id = _normalizeId(username);
     final storedOtp = await _secure.read(key: '$_otpKeyPrefix$id');
     final storedTime = await _secure.read(key: '$_otpTimePrefix$id');
     final storedPass = await _secure.read(key: '$_otpPassPrefix$id');
+    final storedEmail = await _secure.read(key: '$_otpEmailPrefix$id');
 
-    if (storedOtp == null || storedTime == null || storedPass == null) return false;
+    if (storedOtp == null || storedTime == null || storedPass == null || storedEmail == null) return false;
 
     final created = DateTime.tryParse(storedTime);
     if (created == null) {
       await _clearOtp(id);
       return false;
     }
+
     if (DateTime.now().difference(created) > Duration(minutes: otpTtlMinutes)) {
       await _clearOtp(id);
       return false;
     }
-    if (otp.trim() != storedOtp) return false;
 
-    final registered = await register(id, storedPass, makeAdmin: makeAdmin);
+    if (otp.trim() != storedOtp.trim()) return false;
+
+    final users = await _loadUsersRaw();
+    final normEmail = storedEmail.trim().toLowerCase();
+
+    final existsUsername = users.any((u) => (u['username'] as String).toLowerCase() == id);
+    if (existsUsername) {
+      await _clearOtp(id);
+      return false;
+    }
+
+    final existsEmail = users.any((u) {
+      final e = (u['email'] as String?) ?? '';
+      return e.isNotEmpty && e.toLowerCase() == normEmail;
+    });
+    if (existsEmail) {
+      await _clearOtp(id);
+      return false;
+    }
+
+    final registered = await register(id, storedPass, email: normEmail, makeAdmin: makeAdmin);
     await _clearOtp(id);
     return registered;
   }
 
-  // Request reset OTP by username or email (requires stored email on user or in temp storage)
   Future<bool> requestResetOtp({
     required String usernameOrEmail,
     required EmailService emailService,
@@ -283,17 +350,17 @@ class AuthService extends ChangeNotifier {
     if (identifier.isEmpty) return false;
 
     final users = await _loadUsersRaw();
-
-    // try to find username and email in users (users may not have email field)
     String? foundUsername;
     String? foundEmail;
+
     for (final u in users) {
       final uname = (u['username'] as String);
       if (uname.toLowerCase() == identifier.toLowerCase()) {
         foundUsername = uname;
-        foundEmail = (u['email'] as String?) ?? null;
+        foundEmail = (u['email'] as String?) ?? '';
         break;
       }
+
       final emailField = (u['email'] as String?) ?? '';
       if (emailField.isNotEmpty && emailField.toLowerCase() == identifier.toLowerCase()) {
         foundUsername = u['username'] as String;
@@ -322,7 +389,7 @@ class AuthService extends ChangeNotifier {
     required String newPassword,
     int otpTtlMinutes = 5,
   }) async {
-    final id = username.trim().toLowerCase();
+    final id = _normalizeId(username);
     final storedOtp = await _secure.read(key: '$_otpKeyPrefix$id');
     final storedTime = await _secure.read(key: '$_otpTimePrefix$id');
 
@@ -333,11 +400,13 @@ class AuthService extends ChangeNotifier {
       await _clearOtp(id);
       return false;
     }
+
     if (DateTime.now().difference(created) > Duration(minutes: otpTtlMinutes)) {
       await _clearOtp(id);
       return false;
     }
-    if (otp.trim() != storedOtp) return false;
+
+    if (otp.trim() != storedOtp.trim()) return false;
 
     final ok = await resetPassword(id, newPassword);
     await _clearOtp(id);

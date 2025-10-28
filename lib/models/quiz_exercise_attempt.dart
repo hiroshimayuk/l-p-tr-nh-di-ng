@@ -1,4 +1,5 @@
-import 'package:vn_es_demo/models/quiz_models.dart';
+import 'dart:convert';
+import 'quiz_models.dart';
 
 class QuizExerciseAttempt {
   final List<QuestionItem> questions;
@@ -10,20 +11,38 @@ class QuizExerciseAttempt {
   });
 
   factory QuizExerciseAttempt.fromJson(Map<String, dynamic> json) {
-    final questionsList = (json['questions'] as List)
-        .map((item) => QuestionItem.fromJson(item as Map<String, dynamic>))
-        .toList();
-    final answersMap = Map<String, String>.from(json['userAnswers'] as Map);
+    final questionsRaw = json['questions'];
+    final questionsList = <QuestionItem>[];
+    if (questionsRaw is List) {
+      for (final item in questionsRaw) {
+        if (item is Map<String, dynamic>) {
+          questionsList.add(QuestionItem.fromJson(item));
+        } else if (item is Map) {
+          questionsList.add(QuestionItem.fromJson(Map<String, dynamic>.from(item)));
+        }
+      }
+    }
+
+    final answersRaw = json['userAnswers'];
+    final Map<String, String> answersMap = {};
+    if (answersRaw is Map) {
+      answersMap.addAll(Map<String, String>.from(
+          answersRaw.map((k, v) => MapEntry(k.toString(), v?.toString() ?? ''))));
+    }
+
     return QuizExerciseAttempt(
       questions: questionsList,
       userAnswers: answersMap,
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'questions': questions.map((q) => q.toJson()).toList(),
-      'userAnswers': userAnswers,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+    'questions': questions.map((q) => q.toJson()).toList(),
+    'userAnswers': userAnswers,
+  };
+
+  String toRawJson() => json.encode(toJson());
+
+  factory QuizExerciseAttempt.fromRawJson(String raw) =>
+      QuizExerciseAttempt.fromJson(json.decode(raw) as Map<String, dynamic>);
 }

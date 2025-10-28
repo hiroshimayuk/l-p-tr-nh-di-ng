@@ -1,4 +1,3 @@
-// lib/models/registration_model.dart
 import 'dart:convert';
 
 class RegistrationModel {

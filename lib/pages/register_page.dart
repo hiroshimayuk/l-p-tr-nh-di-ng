@@ -1,4 +1,3 @@
-// lib/pages/register_page.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
@@ -69,7 +68,7 @@ class _RegisterPageState extends State<RegisterPage> {
       _setLoading(false);
 
       if (!ok) {
-        _setError('Không thể tạo yêu cầu đăng ký. Tên đăng nhập có thể đã tồn tại hoặc SMTP chưa cấu hình.');
+        _setError('Không thể tạo yêu cầu đăng ký. Tên đăng nhập có thể đã tồn tại hoặc email đã tồn tại.');
         return;
       }
 
@@ -77,53 +76,127 @@ class _RegisterPageState extends State<RegisterPage> {
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => VerifyOtpPage(identifier: username, purpose: VerifyPurpose.register)));
     } catch (e) {
       _setLoading(false);
-      _setError('Lỗi khi gửi OTP. Vui lòng thử lại.');
+      _setError('Lỗi khi gửi OTP. Vui lòng kiểm tra cài đặt SMTP và thử lại.');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Đăng ký')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
+      appBar: AppBar(title: const Text('Đăng ký Tài khoản')),
+      body: Center(
         child: SingleChildScrollView(
-          child: Form(
-            key: _form,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(controller: _usernameCtrl, decoration: const InputDecoration(labelText: 'Tên đăng nhập'), validator: _validateUsername),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _passwordCtrl,
-                  decoration: InputDecoration(
-                    labelText: 'Mật khẩu',
-                    suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off), onPressed: () => setState(() => _obscure = !_obscure)),
-                  ),
-                  obscureText: _obscure,
-                  validator: _validatePassword,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'FOUR ROCK',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w900,
+                  color: Theme.of(context).primaryColor,
+                  letterSpacing: 1.5,
                 ),
-                const SizedBox(height: 12),
-                TextFormField(controller: _emailCtrl, decoration: const InputDecoration(labelText: 'Email'), keyboardType: TextInputType.emailAddress, validator: _validateEmail),
-                const SizedBox(height: 20),
-                if (_error != null) ...[
-                  Text(_error!, style: const TextStyle(color: Colors.red)),
-                  const SizedBox(height: 12),
-                ],
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _loading ? null : _submit,
-                    child: _loading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Gửi mã xác thực (OTP)'),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Học từ vựng, Vững kiến thức.',
+                style: TextStyle(
+                  fontSize: 18,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              Card(
+                elevation: 8,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Form(
+                    key: _form,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('ĐĂNG KÝ', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 20),
+                        TextFormField(
+                            controller: _usernameCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Tên đăng nhập (Tối thiểu 3 ký tự)',
+                              prefixIcon: Icon(Icons.person_add),
+                              border: OutlineInputBorder(),
+                            ),
+                            validator: _validateUsername
+                        ),
+                        const SizedBox(height: 16),
+
+                        TextFormField(
+                          controller: _passwordCtrl,
+                          decoration: InputDecoration(
+                            labelText: 'Mật khẩu (Tối thiểu 6 ký tự)',
+                            prefixIcon: const Icon(Icons.lock),
+                            border: const OutlineInputBorder(),
+                            suffixIcon: IconButton(
+                                icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                                onPressed: () => setState(() => _obscure = !_obscure)
+                            ),
+                          ),
+                          obscureText: _obscure,
+                          validator: _validatePassword,
+                        ),
+                        const SizedBox(height: 16),
+
+                        TextFormField(
+                            controller: _emailCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Email (Cần thiết để nhận OTP)',
+                              prefixIcon: Icon(Icons.email),
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.emailAddress,
+                            validator: _validateEmail
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        if (_error != null) ...[
+                          Text(_error!, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w500)),
+                          const SizedBox(height: 12),
+                        ],
+
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            icon: _loading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.send),
+                            onPressed: _loading ? null : _submit,
+                            label: Text(_loading ? 'Đang gửi...' : 'GỬI MÃ XÁC THỰC (OTP)', style: const TextStyle(fontSize: 16)),
+                            style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        TextButton.icon(
+                            icon: const Icon(Icons.arrow_back),
+                            onPressed: _loading ? null : () => Navigator.of(context).pop(),
+                            label: const Text('Quay lại Đăng nhập')
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        Text(
+                          'Mã OTP có hiệu lực trong 5 phút. Vui lòng kiểm tra cả hộp thư chính và mục Spam.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                TextButton(onPressed: _loading ? null : () => Navigator.of(context).pop(), child: const Text('Quay lại')),
-                const SizedBox(height: 8),
-                const Text('Lưu ý: mã OTP có hiệu lực trong 5 phút. Kiểm tra hộp thư hoặc mục Spam.'),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

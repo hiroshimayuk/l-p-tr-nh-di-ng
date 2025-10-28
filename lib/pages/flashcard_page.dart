@@ -50,7 +50,6 @@ class _FlashcardPageState extends State<FlashcardPage> {
         if (mounted) setState(() => _speaking = false);
       });
     } catch (_) {
-      // ignore init errors; TTS may be unavailable on some emulators
     }
   }
 
@@ -71,7 +70,7 @@ class _FlashcardPageState extends State<FlashcardPage> {
   void _flip() {
     setState(() {
       _showBack = !_showBack;
-      if (_showBack && _autoplay) _speakEnCurrent();
+      if (_autoplay || (_showBack == false)) _speakEnCurrent();
     });
   }
 
@@ -79,6 +78,7 @@ class _FlashcardPageState extends State<FlashcardPage> {
     if (_cards.isEmpty) return;
     final text = _cards[_index].en;
     if (text.isEmpty) return;
+    await _stopSpeak();
     try {
       await _tts.setLanguage('en-US');
       await _tts.speak(text);
@@ -88,6 +88,22 @@ class _FlashcardPageState extends State<FlashcardPage> {
       } catch (_) {}
     }
   }
+
+  Future<void> _speakViCurrent() async {
+    if (_cards.isEmpty) return;
+    final text = _cards[_index].vi;
+    if (text.isEmpty) return;
+    await _stopSpeak();
+    try {
+      await _tts.setLanguage('vi-VN');
+      await _tts.speak(text);
+    } catch (_) {
+      try {
+        await _tts.speak(text);
+      } catch (_) {}
+    }
+  }
+
 
   Future<void> _stopSpeak() async {
     try {
@@ -103,12 +119,78 @@ class _FlashcardPageState extends State<FlashcardPage> {
     });
   }
 
+  Widget _buildFlashcard(Vocab card) {
+    return GestureDetector(
+      key: ValueKey(_showBack),
+      onTap: _flip,
+      child: Card(
+        elevation: 10,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        margin: const EdgeInsets.all(24),
+        child: Container(
+          width: double.infinity,
+          height: 300,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                _showBack ? 'Tiếng Việt' : 'English',
+                style: TextStyle(
+                  fontSize: 18,
+                  color: _showBack ? Colors.green : Colors.blue,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _showBack ? card.vi : card.en,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 24),
+              if (_showBack)
+                TextButton.icon(
+                  onPressed: _speakViCurrent,
+                  icon: const Icon(Icons.record_voice_over, color: Colors.green),
+                  label: const Text('Phát âm VI'),
+                )
+              else
+                TextButton.icon(
+                  onPressed: _speakEnCurrent,
+                  icon: const Icon(Icons.volume_up, color: Colors.blue),
+                  label: const Text('Phát âm EN'),
+                ),
+              const SizedBox(height: 8),
+              Text(
+                'Chạm để lật',
+                style: TextStyle(color: Colors.grey[500], fontSize: 12, fontStyle: FontStyle.italic),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
     if (_cards.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('Flashcards')),
-        body: const Center(child: Text('Không có thẻ')),
+        body: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.casino, size: 64, color: Colors.black26),
+              SizedBox(height: 16),
+              Text('Danh sách từ vựng trống', style: TextStyle(fontSize: 18, color: Colors.black54)),
+              Text('Thêm từ vựng mới hoặc kiểm tra dữ liệu của bạn.', style: TextStyle(color: Colors.black38)),
+            ],
+          ),
+        ),
       );
     }
 
@@ -116,76 +198,72 @@ class _FlashcardPageState extends State<FlashcardPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Flashcards ${_index + 1}/${_cards.length}'),
+        title: Text('Thẻ ${_index + 1}/${_cards.length}'),
+        centerTitle: false,
         actions: [
           IconButton(
-            icon: Icon(_autoplay ? Icons.play_circle_fill : Icons.play_circle_outline),
-            tooltip: _autoplay ? 'Autoplay on' : 'Autoplay off',
+            icon: Icon(_autoplay ? Icons.volume_up : Icons.volume_off),
+            tooltip: _autoplay ? 'Tắt Tự động phát âm' : 'Bật Tự động phát âm',
+            color: _autoplay ? Theme.of(context).colorScheme.primary : Colors.grey,
             onPressed: _toggleAutoplay,
           ),
           IconButton(
-            icon: Icon(_speaking ? Icons.stop : Icons.volume_up),
-            tooltip: _speaking ? 'Stop' : 'Play pronunciation',
-            onPressed: _speaking ? _stopSpeak : _speakEnCurrent,
+            icon: Icon(_speaking ? Icons.stop_circle_outlined : Icons.volume_up),
+            tooltip: _speaking ? 'Dừng phát âm' : 'Phát âm',
+            color: _speaking ? Colors.red : Theme.of(context).colorScheme.primary,
+            onPressed: _speaking ? _stopSpeak : (_showBack ? _speakViCurrent : _speakEnCurrent),
           ),
         ],
       ),
-      body: Center(
-        child: GestureDetector(
-          onTap: _flip,
-          child: Card(
-            elevation: 6,
-            margin: const EdgeInsets.all(24),
-            child: Container(
-              width: double.infinity,
-              height: 360,
-              alignment: Alignment.center,
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    _showBack ? card.vi : card.en,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+      body: Column(
+        children: [
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              transitionBuilder: (Widget child, Animation<double> animation) {
+                final offsetAnimation = Tween<Offset>(
+                  begin: const Offset(0.0, 0.1),
+                  end: Offset.zero,
+                ).animate(animation);
+
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: offsetAnimation,
+                    child: child,
                   ),
-                  const SizedBox(height: 20),
-                  if (!_showBack)
-                    TextButton.icon(
-                      onPressed: _speakEnCurrent,
-                      icon: const Icon(Icons.volume_up),
-                      label: const Text('Phát âm EN'),
-                    )
-                  else
-                    TextButton.icon(
-                      onPressed: () async {
-                        try {
-                          await _tts.setLanguage('vi-VN');
-                          await _tts.speak(card.vi);
-                        } catch (_) {
-                          try {
-                            await _tts.speak(card.vi);
-                          } catch (_) {}
-                        }
-                      },
-                      icon: const Icon(Icons.record_voice_over),
-                      label: const Text('Phát âm VI'),
-                    ),
-                ],
-              ),
+                );
+              },
+              child: _buildFlashcard(card),
             ),
           ),
-        ),
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            ElevatedButton.icon(onPressed: _prev, icon: const Icon(Icons.arrow_back), label: const Text('Prev')),
-            ElevatedButton.icon(onPressed: _next, icon: const Icon(Icons.arrow_forward), label: const Text('Next')),
-          ],
-        ),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 120,
+                  child: FilledButton.icon(
+                    onPressed: _prev,
+                    icon: const Icon(Icons.arrow_back_ios),
+                    label: const Text('Trước'),
+                  ),
+                ),
+                const SizedBox(width: 24),
+                SizedBox(
+                  width: 120,
+                  child: FilledButton.icon(
+                    onPressed: _next,
+                    icon: const Icon(Icons.arrow_forward_ios),
+                    label: const Text('Tiếp'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

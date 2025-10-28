@@ -53,7 +53,6 @@ class _DetailPageState extends State<DetailPage> {
     await _tts.setVolume(1.0);
     await _tts.setPitch(1.0);
 
-    // Handle completion / error callbacks
     _tts.setStartHandler(() {
       if (mounted) setState(() => _speaking = true);
     });
@@ -75,7 +74,6 @@ class _DetailPageState extends State<DetailPage> {
   Future<void> _speakVi() async {
     final text = widget.vocab.vi;
     if (text.isEmpty) return;
-    // Vietnamese language code
     await _tts.setLanguage('vi-VN');
     await _tts.speak(text);
   }

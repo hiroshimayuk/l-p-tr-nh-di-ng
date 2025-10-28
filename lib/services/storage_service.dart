@@ -6,7 +6,7 @@ import '../models/quiz_result.dart';
 class StorageService {
   static const String _userVocabKey = 'user_vocab_v1';
   static const String _deletedIdsKey = 'deleted_vocab_ids_v1';
-  static const String _favoritesKeyPrefix = 'favorites_'; // favorites_<username>
+  static const String _favoritesKeyPrefix = 'favorites_';
   static const String _favoritesGuestKey = 'favorites_guest_v1';
   static const String _historyPrefix = 'quiz_history_';
   static const String _guestHistoryKey = 'quiz_history_guest_v1';

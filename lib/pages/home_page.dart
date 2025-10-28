@@ -20,7 +20,7 @@ import 'quiz_pack_exercises_page.dart';
 import 'quiz_manage_page.dart';
 import 'history_page.dart';
 import 'login_page.dart';
-import 'settings_page.dart';
+import 'settings_page.dart'; // Giữ nguyên import nếu nó được dùng ở chỗ khác
 import 'profile_page.dart';
 import 'user_management_page.dart';
 
@@ -43,6 +43,8 @@ class _HomePageState extends State<HomePage> {
   Set<String> _favorites = {};
   bool _loading = true;
   Timer? _debounce;
+  // Biến để theo dõi xem người dùng đang tìm kiếm hay không
+  bool get _isSearching => _searchEnController.text.trim().isNotEmpty || _searchViController.text.trim().isNotEmpty;
 
   @override
   void initState() {
@@ -105,7 +107,7 @@ class _HomePageState extends State<HomePage> {
   // Remove Vietnamese diacritics
   String _removeDiacritics(String str) {
     const withDia =
-        'áàảãạăắằẳẵặâấầẩẫậđéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵÁÀẢÃẠĂẮẰẲẴẶÂẤẦẨẪẬĐÉÈẺẼẸÊẾỀỂỄỆÍÌỈĨỊÓÒỎÕỌÔỐỒỔỖỘƠỚỜỞỠỢÚÙỦŨỤƯỨỪỬỮỰÝỲỶỸỴ';
+        'áàảãạăắằẳẵặâấầẩẫậđéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵÁÀẢÃẠĂẮẰẲẴẶÂẤẦẨẪẬĐÉẺẼẸÊẾỀỂỄỆÍÌỈỊÓÒỎÕỌÔỐỒỔỖỘƠỚỜỞỠỢÚÙỦŨỤƯỨỪỮỰÝỲỶỸỴ';
     const noDia =
         'aaaaaaaaaaaaaaaaadddeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuyyyyyAAAAAAAAAAAAAAAAADDDEEEEEEEEEEEIIIIIOOOOOOOOOOOOOOOOOOUUUUUUUUUUYYYYY';
     for (int i = 0; i < withDia.length; i++) {
@@ -117,7 +119,6 @@ class _HomePageState extends State<HomePage> {
   String _normalize(String s) => _removeDiacritics(s.toLowerCase().trim());
 
   void _onSearchChanged({required String lang}) {
-    // Ensure only one search box has text at a time: clear the other
     if (lang == 'en' && _searchEnController.text.trim().isNotEmpty && _searchViController.text.isNotEmpty) {
       _searchViController.clear();
     } else if (lang == 'vi' && _searchViController.text.trim().isNotEmpty && _searchEnController.text.isNotEmpty) {
@@ -127,10 +128,10 @@ class _HomePageState extends State<HomePage> {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 180), () => _performSearch(lang: lang));
 
-    // Immediate clear suggestions if field is empty
-    if ((lang == 'en' && _searchEnController.text.trim().isEmpty) || (lang == 'vi' && _searchViController.text.trim().isEmpty)) {
+    if ((lang == 'en' && _searchEnController.text.trim().isEmpty) && (lang == 'vi' && _searchViController.text.trim().isEmpty)) {
       if (mounted) setState(() => _suggestions = []);
     }
+    if (mounted) setState(() {});
   }
 
   void _performSearch({required String lang}) {
@@ -173,6 +174,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   bool _isAdmin() => context.read<AuthService>().isAdmin;
+  bool _isLoggedIn() => context.read<AuthService>().isLoggedIn;
 
   void _showForbiddenMessage(String action) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Chỉ admin mới được $action')));
@@ -308,52 +310,62 @@ class _HomePageState extends State<HomePage> {
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              ListTile(
-                title: const Text('Làm quiz - Nhập môn'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  Navigator.push(ctx, MaterialPageRoute(builder: (_) => QuizPackExercisesPage(assetPath: 'assets/data/bai_tap_tieng_anh_nhap_mon.json', title: 'Nhập môn')));
-                },
-              ),
-              ListTile(
-                title: const Text('Làm quiz - Trung cấp'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  Navigator.push(ctx, MaterialPageRoute(builder: (_) => QuizPackExercisesPage(assetPath: 'assets/data/bai_tap_tieng_anh_trung_cap.json', title: 'Trung cấp')));
-                },
-              ),
-              ListTile(
-                title: const Text('Làm quiz - Nâng cao'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  Navigator.push(ctx, MaterialPageRoute(builder: (_) => QuizPackExercisesPage(assetPath: 'assets/data/bai_tap_tieng_anh_nang_cao.json', title: 'Nâng cao')));
-                },
-              ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.manage_accounts),
-                title: const Text('Quản lý Quiz - Nhập môn'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _openQuizManage('assets/data/bai_tap_tieng_anh_nhap_mon.json', 'Quản lý Nhập môn');
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.manage_accounts),
-                title: const Text('Quản lý Quiz - Trung cấp'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _openQuizManage('assets/data/bai_tap_tieng_anh_trung_cap.json', 'Quản lý Trung cấp');
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.manage_accounts),
-                title: const Text('Quản lý Quiz - Nâng cao'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _openQuizManage('assets/data/bai_tap_tieng_anh_nang_cao.json', 'Quản lý Nâng cao');
-                },
-              ),
+              // Nút Quiz theo cấp độ (Làm quiz) - DÀNH CHO TẤT CẢ USER
+              if (!_isAdmin()) ...[
+                ListTile(
+                  leading: const Icon(Icons.school, color: Colors.green),
+                  title: const Text('Làm quiz - Nhập môn'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.push(ctx, MaterialPageRoute(builder: (_) => QuizPackExercisesPage(assetPath: 'assets/data/bai_tap_tieng_anh_nhap_mon.json', title: 'Nhập môn')));
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.trending_up, color: Colors.orange),
+                  title: const Text('Làm quiz - Trung cấp'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.push(ctx, MaterialPageRoute(builder: (_) => QuizPackExercisesPage(assetPath: 'assets/data/bai_tap_tieng_anh_trung_cap.json', title: 'Trung cấp')));
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.rocket_launch, color: Colors.red),
+                  title: const Text('Làm quiz - Nâng cao'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.push(ctx, MaterialPageRoute(builder: (_) => QuizPackExercisesPage(assetPath: 'assets/data/bai_tap_tieng_anh_nang_cao.json', title: 'Nâng cao')));
+                  },
+                ),
+                const Divider(),
+              ],
+
+              // 🚨 QUẢN LÝ QUIZ: CHỈ HIỂN THỊ KHI LÀ ADMIN
+              if (_isAdmin()) ...[
+                ListTile(
+                  leading: const Icon(Icons.manage_accounts, color: Colors.blue),
+                  title: const Text('Quản lý Quiz - Nhập môn'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _openQuizManage('assets/data/bai_tap_tieng_anh_nhap_mon.json', 'Quản lý Quiz (Nhập môn)');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.manage_accounts, color: Colors.blue),
+                  title: const Text('Quản lý Quiz - Trung cấp'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _openQuizManage('assets/data/bai_tap_tieng_anh_trung_cap.json', 'Quản lý Quiz (Trung cấp)');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.manage_accounts, color: Colors.blue),
+                  title: const Text('Quản lý Quiz - Nâng cao'),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _openQuizManage('assets/data/bai_tap_tieng_anh_nang_cao.json', 'Quản lý Quiz (Nâng cao)');
+                  },
+                ),
+              ],
               const SizedBox(height: 8),
             ]),
           ),
@@ -362,13 +374,69 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildEmptyHint() {
-    return Center(
-      child: Column(mainAxisSize: MainAxisSize.min, children: const [
-        Icon(Icons.search, size: 56, color: Colors.grey),
-        SizedBox(height: 12),
-        Text('Nhập ký tự tiếng Anh hoặc tiếng Việt để tìm từ', style: TextStyle(color: Colors.grey)),
-      ]),
+  // --- Widget Mới: Logo và Tên ứng dụng trên Body ---
+  Widget _buildWelcomeLogo(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(32.0),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Logo hình tròn (Sử dụng Image.asset)
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/images/logo.png', // <-- ĐƯỜNG DẪN LOGO TỪ ASSETS
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Icon(
+                      Icons.translate, // Fallback icon
+                      size: 48,
+                      color: theme.colorScheme.secondary,
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Tên ứng dụng
+            Text(
+              'FOUR ROCK',
+              style: TextStyle(
+                fontSize: 36,
+                fontWeight: FontWeight.w900,
+                color: theme.primaryColor,
+                letterSpacing: 2.0,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Từ điển Anh-Việt nhanh chóng và hiệu quả',
+              style: TextStyle(color: Colors.black54, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Nhập ký tự tiếng Anh hoặc tiếng Việt để tìm từ',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -415,11 +483,15 @@ class _HomePageState extends State<HomePage> {
     final ok = await showDialog<bool>(
       context: ctx,
       builder: (_) => AlertDialog(
-        title: const Text('Xác nhận'),
-        content: Text('Bạn có chắc muốn xóa "${v.en}" không?'),
+        title: const Text('Xác nhận Xóa'),
+        content: Text('Bạn có chắc muốn xóa vĩnh viễn từ "${v.en}" không?'),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Hủy')),
-          ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Xóa')),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Xóa', style: TextStyle(color: Colors.white)),
+          ),
         ],
       ),
     );
@@ -446,73 +518,43 @@ class _HomePageState extends State<HomePage> {
       await _openLogin();
     } else if (value == 'logout') {
       await _logout();
+      // 🚨 SỬA LẠI LOGIC SETTINGS THÀNH PROFILE
     } else if (value == 'settings') {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()));
+      // Logic cũ của Settings (đã bị xóa)
+      // Nếu không có SettingsPage, chuyển đến ProfilePage
+      Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage()));
     } else if (value == 'manage_accounts') {
+      if (!auth.isAdmin) {
+        _showForbiddenMessage('quản lý tài khoản');
+        return;
+      }
       Navigator.push(context, MaterialPageRoute(builder: (_) => const UserManagementPage()));
     } else if (value == 'profile') {
+      // Logic của Profile
       Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage()));
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final auth = context.watch<AuthService>();
-    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Vocab Demo'),
-        actions: [
-          IconButton(icon: const Icon(Icons.history), onPressed: _openHistory, tooltip: 'Lịch sử làm bài'),
-          IconButton(icon: const Icon(Icons.favorite), onPressed: _openFavorites, tooltip: 'Yêu thích'),
-          IconButton(icon: const Icon(Icons.casino), onPressed: _openFlashcard, tooltip: 'Flashcard'),
-          IconButton(icon: const Icon(Icons.quiz), onPressed: _showQuizBottomSheet, tooltip: 'Quiz'),
-          if (auth.isAdmin) IconButton(icon: const Icon(Icons.add), onPressed: _openAddPage, tooltip: 'Thêm từ'),
-          // Account popup menu
-          PopupMenuButton<String>(
-            tooltip: auth.isLoggedIn ? 'Tài khoản (${auth.currentUser?.username})' : 'Tài khoản',
-            icon: Icon(auth.isLoggedIn ? Icons.account_circle : Icons.login),
-            onSelected: _onAccountMenuSelected,
-            itemBuilder: (context) {
-              final List<PopupMenuEntry<String>> items = [];
-              if (auth.isLoggedIn) {
-                items.add(PopupMenuItem(value: 'profile', child: Text('Tài khoản: ${auth.currentUser?.username}')));
-                items.add(const PopupMenuDivider());
-                items.add(const PopupMenuItem(value: 'settings', child: Text('Cài đặt')));
-                items.add(const PopupMenuItem(value: 'logout', child: Text('Đăng xuất')));
-                if (auth.isAdmin) {
-                  items.add(const PopupMenuDivider());
-                  items.add(const PopupMenuItem(value: 'manage_accounts', child: Text('Quản lý tài khoản')));
-                }
-              } else {
-                items.add(const PopupMenuItem(value: 'login', child: Text('Đăng nhập')));
-                items.add(const PopupMenuItem(value: 'settings', child: Text('Cài đặt')));
-              }
-              return items;
-            },
-          ),
-          if (auth.isAdmin)
-            IconButton(
-              icon: const Icon(Icons.admin_panel_settings),
-              tooltip: 'Quản lý Quiz',
-              onPressed: () => _openQuizManage('assets/data/bai_tap_tieng_anh_nhap_mon.json', 'Quản lý Quiz'),
-            ),
-        ],
-      ),
-      body: Column(children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6),
-          child: Row(children: [
-            Expanded(
-              child: TextField(
+  // --- Widget Mới: Gộp Search Box ---
+  Widget _buildSearchFields() {
+    return Padding(
+      padding: const EdgeInsets.all(12.0),
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            children: [
+              // Search English
+              TextField(
                 controller: _searchEnController,
                 keyboardType: TextInputType.text,
                 textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.search),
-                  hintText: 'Tìm tiếng Anh (ví dụ: apple)',
-                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.abc, color: Colors.blue),
+                  hintText: 'Tìm từ tiếng Anh (ví dụ: apple)',
+                  border: InputBorder.none,
                   suffixIcon: _searchEnController.text.isNotEmpty
                       ? IconButton(
                     icon: const Icon(Icons.clear),
@@ -525,17 +567,16 @@ class _HomePageState extends State<HomePage> {
                 ),
                 onSubmitted: (_) => _performSearch(lang: 'en'),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
+              const Divider(height: 1),
+              // Search Vietnamese
+              TextField(
                 controller: _searchViController,
                 keyboardType: TextInputType.text,
                 textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.search),
+                  prefixIcon: const Icon(Icons.translate, color: Colors.green),
                   hintText: 'Tìm tiếng Việt (ví dụ: táo)',
-                  border: const OutlineInputBorder(),
+                  border: InputBorder.none,
                   suffixIcon: _searchViController.text.isNotEmpty
                       ? IconButton(
                     icon: const Icon(Icons.clear),
@@ -548,31 +589,248 @@ class _HomePageState extends State<HomePage> {
                 ),
                 onSubmitted: (_) => _performSearch(lang: 'vi'),
               ),
-            ),
-          ]),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  // --- Widget Mới: Drawer ---
+  Widget _buildDrawer(AuthService auth) {
+    final theme = Theme.of(context);
+    final usernameDisplay = auth.isLoggedIn ? auth.currentUser?.username ?? 'Người dùng' : 'Khách';
+    final isUser = !auth.isAdmin; // Xác định user thường hoặc khách
+
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: <Widget>[
+          // BẮT ĐẦU: PHẦN HEADER MỚI CÓ LOGO (ẢNH) VÀ TÊN APP
+          DrawerHeader(
+            decoration: BoxDecoration(
+              color: theme.primaryColor,
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                // Logo hình tròn (Sử dụng Image.asset)
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    border: Border.all(color: Colors.white, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/images/logo.png', // <-- Đường dẫn ảnh logo
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        // Dùng Icon dự phòng thân thiện thay vì Icon lỗi màu đỏ
+                        return Icon(
+                          Icons.book_online, // Icon dự phòng
+                          size: 48,
+                          color: theme.colorScheme.secondary,
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Tên ứng dụng
+                const Text(
+                  'FOUR ROCK',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                // Thông tin tài khoản
+                GestureDetector(
+                  onTap: auth.isLoggedIn ? () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage())); } : null,
+                  child: Row(
+                    children: [
+                      Icon(auth.isLoggedIn ? Icons.account_circle : Icons.login, color: Colors.white70, size: 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Tài khoản: $usernameDisplay',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // KẾT THÚC: PHẦN HEADER MỚI VỚI ẢNH LOGO
+
+          // Các mục Menu
+          ListTile(
+            leading: const Icon(Icons.favorite, color: Colors.red),
+            title: const Text('Từ yêu thích'),
+            onTap: () {
+              Navigator.pop(context);
+              _openFavorites();
+            },
+          ),
+          // 🚨 FLASHCARD & LỊCH SỬ LÀM BÀI: CHỈ HIỂN THỊ KHI KHÔNG PHẢI ADMIN
+          if (isUser)
+            ListTile(
+              leading: const Icon(Icons.casino, color: Colors.orange),
+              title: const Text('Flashcard học từ'),
+              onTap: () {
+                Navigator.pop(context);
+                _openFlashcard();
+              },
+            ),
+          if (isUser)
+            ListTile(
+              leading: const Icon(Icons.history, color: Colors.grey),
+              title: const Text('Lịch sử làm bài'),
+              onTap: () {
+                Navigator.pop(context);
+                _openHistory();
+              },
+            ),
+          const Divider(),
+          if (auth.isAdmin)
+            ListTile(
+              leading: const Icon(Icons.admin_panel_settings, color: Colors.blue),
+              title: const Text('Quản lý Tài khoản (Admin)'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const UserManagementPage()));
+              },
+            ),
+          // 🚨 TÀI KHOẢN CÁ NHÂN: Hiển thị cho User thường và Khách
+          if (isUser || !auth.isLoggedIn)
+            ListTile(
+              leading: const Icon(Icons.person_pin, color: Colors.teal), // Dùng icon khác để phân biệt
+              title: const Text('Tài khoản cá nhân'), // Đổi tên thành Tài khoản cá nhân
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage())); // Dùng ProfilePage
+              },
+            ),
+          const Divider(),
+          if (auth.isLoggedIn)
+            ListTile(
+              leading: const Icon(Icons.logout, color: Colors.deepOrange),
+              title: const Text('Đăng xuất'),
+              onTap: () {
+                Navigator.pop(context);
+                _logout();
+              },
+            )
+          else
+            ListTile(
+              leading: const Icon(Icons.login, color: Colors.green),
+              title: const Text('Đăng nhập'),
+              onTap: () {
+                Navigator.pop(context);
+                _openLogin();
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthService>();
+    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+
+    // 🚨 XÁC ĐỊNH LẠI: isUser là KHÔNG PHẢI ADMIN
+    final isUser = !auth.isAdmin;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Từ Điển Vocab'),
+        actions: [
+          // Nút Quiz (Giữ lại vì là chức năng tương tác chính)
+          IconButton(icon: const Icon(Icons.quiz), onPressed: _showQuizBottomSheet, tooltip: 'Quiz'),
+          // Nút Tài khoản/Đăng nhập
+          PopupMenuButton<String>(
+            tooltip: auth.isLoggedIn ? 'Tài khoản (${auth.currentUser?.username})' : 'Tài khoản',
+            icon: Icon(auth.isLoggedIn ? Icons.account_circle : Icons.login),
+            onSelected: _onAccountMenuSelected,
+            itemBuilder: (context) {
+              final List<PopupMenuEntry<String>> items = [];
+              if (auth.isLoggedIn) {
+                items.add(PopupMenuItem(value: 'profile', child: Text('Tài khoản: ${auth.currentUser?.username}', style: const TextStyle(fontWeight: FontWeight.bold))));
+                if (isUser) {
+                  // 🚨 TÀI KHOẢN CÁ NHÂN TRONG POPUP CHO USER THƯỜNG
+                  items.add(const PopupMenuDivider());
+                  items.add(const PopupMenuItem(value: 'profile', child: Text('Thông tin cá nhân'))); // Dùng lại value 'profile'
+                }
+                if (auth.isAdmin) {
+                  items.add(const PopupMenuItem(value: 'manage_accounts', child: Text('Quản lý tài khoản (Admin)')));
+                  items.add(const PopupMenuDivider());
+                }
+                items.add(const PopupMenuItem(value: 'logout', child: Text('Đăng xuất')));
+              } else {
+                items.add(const PopupMenuItem(value: 'login', child: Text('Đăng nhập')));
+                // 🚨 TÀI KHOẢN CÁ NHÂN CHO KHÁCH (Khách không cần thấy profile nếu chưa đăng nhập, nhưng vẫn cần tùy chọn này nếu muốn truy cập cài đặt không cần login)
+                // Tuy nhiên, theo logic mới, mục 'profile' trong Popup sẽ được dùng để xem thông tin
+                items.add(const PopupMenuItem(value: 'profile', child: Text('Thông tin cá nhân'))); // Dẫn tới ProfilePage
+              }
+              return items;
+            },
+          ),
+        ],
+      ),
+      drawer: _buildDrawer(auth), // Thêm Drawer
+      body: Column(children: [
+        _buildSearchFields(), // Thanh tìm kiếm
         Expanded(
-          child: (_searchEnController.text.trim().isEmpty && _searchViController.text.trim().isEmpty)
-              ? _buildEmptyHint()
+          child: !_isSearching
+              ? _buildWelcomeLogo(context) // Sử dụng logo và tên app khi chưa tìm kiếm
               : _suggestions.isEmpty
               ? const Center(child: Text('Không tìm thấy từ phù hợp'))
               : ListView.separated(
             itemCount: _suggestions.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
+            separatorBuilder: (_, __) => const Divider(height: 1, indent: 16, endIndent: 16),
             itemBuilder: (context, idx) {
               final v = _suggestions[idx];
               final isFav = _favorites.contains(v.id);
               return ListTile(
-                title: Text(v.en),
-                subtitle: Text(v.vi),
+                title: Text(v.en, style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(v.vi, style: const TextStyle(color: Colors.black87)),
                 leading: IconButton(
-                  icon: Icon(isFav ? Icons.favorite : Icons.favorite_border, color: isFav ? Colors.red : null),
+                  icon: Icon(isFav ? Icons.favorite : Icons.favorite_border, color: isFav ? Colors.red : Colors.grey),
                   onPressed: () => _toggleFavorite(v),
+                  tooltip: isFav ? 'Bỏ yêu thích' : 'Thêm vào yêu thích',
                 ),
-                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                  if (auth.isAdmin) IconButton(icon: const Icon(Icons.edit), tooltip: 'Sửa', onPressed: () => _showEditDialog(context, v)),
-                  if (auth.isAdmin) IconButton(icon: const Icon(Icons.delete), tooltip: 'Xóa', onPressed: () => _confirmDelete(context, v)),
-                ]),
+                trailing: auth.isAdmin
+                    ? PopupMenuButton<String>(
+                  onSelected: (value) async {
+                    if (value == 'edit') await _showEditDialog(context, v);
+                    if (value == 'delete') await _confirmDelete(context, v);
+                  },
+                  itemBuilder: (ctx) => [
+                    const PopupMenuItem(value: 'edit', child: Text('Sửa từ')),
+                    const PopupMenuItem(value: 'delete', child: Text('Xóa từ', style: TextStyle(color: Colors.red))),
+                  ],
+                )
+                    : null, // Chỉ hiển thị menu nếu là Admin
                 onTap: () async {
                   await Navigator.push(context, MaterialPageRoute(builder: (_) => DetailPage(vocab: v, isFavorite: isFav, onToggleFav: () => _toggleFavorite(v))));
                   await _loadFavoritesForUser();
@@ -582,6 +840,15 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ]),
+      // Floating Action Button cho chức năng Admin
+      floatingActionButton: auth.isAdmin
+          ? FloatingActionButton.extended(
+        onPressed: _openAddPage,
+        label: const Text('Thêm từ'),
+        icon: const Icon(Icons.add),
+        backgroundColor: Theme.of(context).colorScheme.secondary,
+      )
+          : null,
     );
   }
 }

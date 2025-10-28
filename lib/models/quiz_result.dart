@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'quiz_exercise_attempt.dart';
 
 class QuizResult {
@@ -27,18 +26,19 @@ class QuizResult {
     'attemptDetails': attemptDetails.toJson(),
   };
 
-  factory QuizResult.fromJson(Map<String, dynamic> j) => QuizResult(
-    quizTitle: j['quizTitle'] as String,
-    totalQuestions: j['totalQuestions'] as int,
-    correctAnswers: j['correctAnswers'] as int,
-    timestamp: DateTime.parse(j['timestamp'] as String),
-    attemptDetails: QuizExerciseAttempt.fromJson(Map<String, dynamic>.from(j['attemptDetails'] as Map)),
-  );
+  factory QuizResult.fromJson(Map<String, dynamic> j) {
+    return QuizResult(
+      quizTitle: j['quizTitle'] as String? ?? '',
+      totalQuestions: (j['totalQuestions'] is int) ? j['totalQuestions'] as int : int.tryParse('${j['totalQuestions']}') ?? 0,
+      correctAnswers: (j['correctAnswers'] is int) ? j['correctAnswers'] as int : int.tryParse('${j['correctAnswers']}') ?? 0,
+      timestamp: DateTime.tryParse(j['timestamp'] as String? ?? '') ?? DateTime.now(),
+      attemptDetails: QuizExerciseAttempt.fromJson(Map<String, dynamic>.from(j['attemptDetails'] as Map)),
+    );
+  }
 
   @override
   String toString() => json.encode(toJson());
 
-  // Helper constructor used elsewhere
   factory QuizResult.create({
     required String quizTitle,
     required int totalQuestions,
